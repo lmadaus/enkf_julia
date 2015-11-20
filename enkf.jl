@@ -30,8 +30,38 @@ end
 
 
 function enkf_update(prior_state, obs; inflate=1.0, loc=false)
-    # prior_state and obs are unlabelled arguments, inflate, loc and
-    # obs_in_state are labeled
+    #= 
+    Master EnKF update algorithm using EnSRF form of equations
+
+    Requires:
+        prior_state -> An array of Nstate x Nmems that is the
+                       ensemble state to update. This code
+                       currently ASSUMES the prior estimates 
+                       of the observations are pre-computed and
+                       all appended to the end of the ensemble
+                       in the same order they are listed in 
+                       the obs variable
+        obs         -> A list of observation objects
+                       (See the Observation type definition
+                       in this file for how to specify them)
+    Optional:
+        inflate     -> For now, a simple numerical value
+                       that will be multiplied by the covariance
+                       matrix in the Kalman gain to inflate the
+                       spread.  Default is 1.0 (no inflation)
+        loc         -> Boolean true/false that will eventually
+                       be changed to something more meaningful
+                       once localization is figured out.  For
+                       now it is not possible to localize.
+        
+    Returns:
+        A tuple of (post_state, obs) with the posterior state
+        and the observations used
+
+
+    =#
+
+    # Figure out the ensemble size
     Nens = size(prior_state)[2]
     Nobs = size(obs)[1]
     # We assume ob estimates are appended to state
@@ -63,6 +93,7 @@ function enkf_update(prior_state, obs; inflate=1.0, loc=false)
        # Find Ye (HXb, prior estimate of ob)
        yem = H * xbm
        yep = H * Xbp
+
 
        # Compute innovation
        innov = ob.value - yem

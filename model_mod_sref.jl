@@ -22,6 +22,7 @@ function build_state(vars, model_path=".")
   state_meta =[]
   cur_state = []
   full_state = []
+  state_structure = Dict()
   varsize = 0
   # Loop though each file and variable
   for (fnum,f) in enumerate(files)
@@ -35,6 +36,7 @@ function build_state(vars, model_path=".")
         # Build the dimensions for this variable
         # Start with variable index
         varsize = size(values)
+        state_structure[var_index] = [var, varsize]
         varkindarr = fill(var_index, varsize)
         varkindarr = reshape(varkindarr, prod(varsize))
         # Now we need times
@@ -84,7 +86,7 @@ function build_state(vars, model_path=".")
 
 
     end # end variable loop
-    println("State meta shape ", size(state_meta))
+    #println("State meta shape ", size(state_meta))
     # Now if this is the first ensemble member, Broaden out the entire state array
     if fnum == 1
       Nstate = length(cur_state)
@@ -96,7 +98,7 @@ function build_state(vars, model_path=".")
   end # end file loop
 
   # Return the full_state and state_meta
-  return (full_state, state_meta)
+  return (full_state, state_meta, state_structure)
 
 
 end

@@ -3,6 +3,8 @@ include("kind_definitions.jl")
 
 kind_names = Dict{ASCIIString, ASCIIString}(
   "TEMPERATURE_2M" => "TMP_2maboveground",
+  "PRESSURE_MSL" => "PRMSL_meansealevel",
+  "PRECIPITATION" => "APCP_surface",
 
 
   )

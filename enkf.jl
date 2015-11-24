@@ -1,11 +1,11 @@
 
 
-function enkf_update(prior_state, obs; inflate=1.0, loc=false)
+function enkf_update(prior_state, obs, loc; inflate=1.0)
     #=
     Master EnKF update algorithm using EnSRF form of equations
 
     Requires:
-        prior_state -> An array of Nstate x Nmems that is the
+        prior_state -> An array of (Nstate+Nobs) x Nmems that is the
                        ensemble state to update. This code
                        currently ASSUMES the prior estimates
                        of the observations are pre-computed and
@@ -16,17 +16,16 @@ function enkf_update(prior_state, obs; inflate=1.0, loc=false)
                        (See the Observation type definition
                        in this file for how to specify them)
     Optional:
+        loc         -> Localization array ((Nstate + Nobs) x Nobs)
+                      containing weights for each ob in columns
         inflate     -> For now, a simple numerical value
                        that will be multiplied by the covariance
                        matrix in the Kalman gain to inflate the
                        spread.  Default is 1.0 (no inflation)
-        loc         -> Boolean true/false that will eventually
-                       be changed to something more meaningful
-                       once localization is figured out.  For
-                       now it is not possible to localize.
+
 
     Returns:
-        A tuple of (post_state, obs) with the posterior state
+        post_state, obs with the posterior state
         and the observations used
 
 
@@ -88,7 +87,8 @@ function enkf_update(prior_state, obs; inflate=1.0, loc=false)
            kcov *= inflate
        end
 
-       # Localization here (to be added)
+       # Localization here ("Schuur Product")
+       kcov = loc[:,obnum] .* kcov
 
        # Compute Kalman gain
        K = kcov / kdenom

@@ -74,6 +74,74 @@ function interp_time(target::DateTime, val1::Float64, time1::DateTime, val2::Flo
 end
 
 
+function append_obs_to_state(state, meta, obs, do_localize=false)
+  #=
+  Function to pre-compute prior state estimates of observations
+  and append these to the state vector.  Will also return an array
+  of localizations if requested
+
+  Inputs:
+    state    -> A (Nstate x Nens) array containing the ensemble state
+    meta     -> A (Nstate x 5) array with the ensemble metadata
+    obs      -> An array of Observation objects
+    do_localize -> True/False, whether or not to compute and return
+                localization array
+  Returns:
+    appended_state  -> A ((Nstate + Nobs) x Nens) array that appends the
+                       observation prior estimates to the end of the state
+    appended_meta   -> A ((Nstate + Nobs) x 5) array including metadata
+                       for the observations
+    (Opt) localization -> A ((Nstate+Nobs) x Nobs) array containing
+                        localization weights for all obs (if localize=true)
+
+  =#
+
+  # Get our sizes
+  Nobs = length(obs)
+  Nstate, Nens = size(state)
+
+  # Build the interpolation tree
+  tree = build_state_meta_tree(meta)
+
+  # Create an empty array for the observation estimates
+  obs_est = zeros(Float64, (Nobs, Nens))
+  obs_meta = zeros(Float64, (Nobs, 5))
+  # Loop through the observations to get the estimates
+  for (obnum,ob) in enumerate(obs)
+    ye = interp_4d(tree, state, ob)
+    obs_est[obnum,:] = ye
+     # For time, subtract from epoch
+    if typeof(ob.t) == DateTime
+      obtime = Int(ob.t - DateTime(1970)) / 1000 # From milliseconds to seconds
+    else
+      obtime = Int(ob.t)
+    end
+    #println(obtime)
+    obs_meta[obnum,:] = [kind_indices[ob.obkind], obtime, ob.z, ob.y, ob.x]
+
+  end #obs loop
+
+  # Now append these to the state
+  appended_state = vcat(state, obs_est)
+  appended_meta = vcat(meta, obs_meta)
+
+  # Second loop here to compute localization to
+  # all other points if requested
+  if do_localize
+    localization = zeros(Float64, (Nstate+Nobs, Nobs))
+    for (obnum, ob) in enumerate(obs)
+      loc = localize(ob, appended_meta)
+      localization[:,obnum] = loc
+    end # obs loop
+    return appended_state, appended_meta, localization
+  else
+    return appended_state, appended_meta
+  end # localize
+end
+
+
+
+
 
 function haversine(lat1::Float64, lon1::Float64, lat2::Float64, lon2::Float64)
   #=
@@ -100,6 +168,8 @@ function localize(ob::Observation, state_meta, cutoff=100.0, method="GC")
     method -> Localization method.  Current options are:
               "GC" -- Gaspari-Cohn
 
+  Returns:
+    An array of size (Nstate) with localization weights for this ob
   =#
 
   # Build an array for our distances

@@ -1,4 +1,6 @@
 include("kind_definitions.jl")
+using NearestNeighbors
+
 
 function interp_4d(meta_tree, state, ob)
   #=
@@ -12,13 +14,19 @@ function interp_4d(meta_tree, state, ob)
 
   RETURNS: a (1xNens) array of the ensemble estimate of the ob
   =#
-  using NearestNeighbors
   # Define the observation's coordinates
-  ob_point = (kind_indices[ob.obtype], Int(ob.time), ob.z, ob.y, ob.x)
+
+  # For time, subtract from epoch
+  if typeof(ob.t) == DateTime
+    obtime = Int(ob.t - DateTime(1970)) / 1000 # From milliseconds to seconds
+  end
+  println(obtime)
+  ob_point = [kind_indices[ob.obkind], obtime, ob.z, ob.y, ob.x]
 
   # Find indices and distances to 10 nearest neighbors in the tree
-  idxs, dists = knn(meta_tree, point, 10, true)
-
+  idxs, dists = knn(meta_tree, ob_point, 10, true)
+  println(idxs)
+  println(dists)
   # Find sum of distances for weights
   tot_dist = sum(dists)
   weights = dists / tot_dist
@@ -27,8 +35,8 @@ function interp_4d(meta_tree, state, ob)
   # multiply by the weights
   state_estimate = zeros(size(state)[2])
   for (idx,w) in zip(idxs,weights)
-    weighted = state[idx] * w
-    state_estimate += weighted
+    weighted = state[idx,:] * w
+    state_estimate += weighted'
   end
 
   return state_estimate
@@ -41,8 +49,7 @@ function build_state_meta_tree(state_meta)
   a tree for efficiently locating the surrounding points of
   a given type,t,z,y,x
   =#
-  using NearestNeighbors
-  kdtree = KDTree(state_meta; leafsize=10)
+  kdtree = KDTree(state_meta'; leafsize=10)
 end
 
 
@@ -73,7 +80,54 @@ function haversine(lat1::Float64, lon1::Float64, lat2::Float64, lon2::Float64)
   Uses the Haversine formula to calculate the distance between two
   lat/lon pairs (in degrees) in kilometers assuming spherical earth
   =#
+  out :: Float64
   R = 6372.8 # Radius of the Earth in km
   out = 2 * R * asin(sqrt(sind((lat2-lat1)/2)^2 + cosd(lat1) * cosd(lat2) * sind((lon2-lon1)/2)^2))
 
 end
+
+
+function localize(ob::Observation, state_meta, cutoff=100.0, method="GC")
+  #=
+  Return an array the length of the state with corresponding
+  weights to each variable based on distance from the observation
+
+  Requires:
+    ob -> Observation object
+    state_meta -> State metadata array (Nstate x 5)
+    cutoff -> Localization cutoff distance in km (this is distance
+              where the weights go to zero)
+    method -> Localization method.  Current options are:
+              "GC" -- Gaspari-Cohn
+
+  =#
+
+  # Build an array for our distances
+  Nstate = size(state_meta)[1]
+  localization = zeros(Float64, Nstate)
+
+  # Loop through the state meta data and compute the distance
+  # from ob to each point (2-d for now)
+  for n=1:Nstate
+    dist = haversine(ob.y,ob.x,state_meta[n,4],state_meta[n,5])
+    r = dist / (cutoff * 0.5)
+    if method == "GC"
+      if r <= 1.0
+        localization[n] = (((-0.25*r+0.5)*r+0.625)*r-5.0/3.0) * r^2 + 1.0
+      elseif (r > 1.0) & (r < 2.0)
+        localization[n] = ((((r/12.0 - 0.5)*r + 0.625) * r +
+                          5.0/3.0)*r-5.0)*r + 4.0 - 2.0 /
+                          (3.0 * r)
+      end # GC location check
+
+
+    end #method
+
+  end # end for n=[1:Nstate]
+
+  return localization
+
+
+end
+
+

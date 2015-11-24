@@ -38,8 +38,8 @@ function build_state(vars, model_path=".")
         # Now we need times
         times = ncread(f,"time")
         timearr = broadcast!(identity, ones(varsize), times[1,1,:])
-        println(size(timearr))
-        println(varsize)
+        #println(size(timearr))
+        #println(varsize)
 
         timearr = reshape(timearr, prod(varsize))
         # For SREF z is zero everywhere for now
@@ -76,8 +76,8 @@ function build_state(vars, model_path=".")
       else
           cur_state = vcat(cur_state, values)
       end # if varnum == 1
-      println("Variable ", var," ", varnum)
-      println(size(cur_state))
+      #println("Variable ", var," ", varnum)
+      #println(size(cur_state))
 
 
 

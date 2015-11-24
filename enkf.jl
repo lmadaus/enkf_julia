@@ -5,6 +5,11 @@ type Observation
     x::Float64
     # Observation z
     z::Float64
+    # Observation time
+    t::DateTime
+    # Observation kind
+    obkind::ASCIIString
+
     # Value
     value::Float64
     # Error variance
@@ -22,24 +27,24 @@ type Observation
     post_var::Float64
 
     # Constructor function
-    function Observation(y,x,value,error,z=0.0)
-        new(y,x,z,value,error)
+    function Observation(value, error, obkind="STATE_VARIABLE", t=DateTime(1970), z=0.0, y=0.0, x=0.0)
+        new(value,error,obkind,t,z,y,x)
     end
 end
 
 
 
 function enkf_update(prior_state, obs; inflate=1.0, loc=false)
-    #= 
+    #=
     Master EnKF update algorithm using EnSRF form of equations
 
     Requires:
         prior_state -> An array of Nstate x Nmems that is the
                        ensemble state to update. This code
-                       currently ASSUMES the prior estimates 
+                       currently ASSUMES the prior estimates
                        of the observations are pre-computed and
                        all appended to the end of the ensemble
-                       in the same order they are listed in 
+                       in the same order they are listed in
                        the obs variable
         obs         -> A list of observation objects
                        (See the Observation type definition
@@ -53,7 +58,7 @@ function enkf_update(prior_state, obs; inflate=1.0, loc=false)
                        be changed to something more meaningful
                        once localization is figured out.  For
                        now it is not possible to localize.
-        
+
     Returns:
         A tuple of (post_state, obs) with the posterior state
         and the observations used
@@ -84,7 +89,7 @@ function enkf_update(prior_state, obs; inflate=1.0, loc=false)
        # Reset the post to be prior
        xbm = xam
        Xbp = Xap
-   
+
        # We construct our H matrix knowing which ob
        # number we are on
        H = zeros(Nstate+Nobs)
@@ -97,7 +102,7 @@ function enkf_update(prior_state, obs; inflate=1.0, loc=false)
 
        # Compute innovation
        innov = ob.value - yem
-     
+
        # check to see if we assimilate this
        # If not, skip the ob
        if !ob.assim_this
@@ -136,7 +141,7 @@ function enkf_update(prior_state, obs; inflate=1.0, loc=false)
        # record the ob as assimilated
        ob.assimilated = true
 
-       
+
     end
 
     # Return the updated state and obs
@@ -146,3 +151,32 @@ function enkf_update(prior_state, obs; inflate=1.0, loc=false)
 
 
 end
+
+
+function test_state(Nens,Nstate,Nobs)
+    #=
+    Function to test the enkf
+    Will return a random array with Nens
+    members by Nstate+Nobs and a list of
+    observations
+
+
+    =#
+
+    state = rand(Nstate+Nobs, Nens)
+
+
+    # Create observations
+    obs = []
+    for onum=[1:Nobs]
+        newob = Observation(randn(), 1.0)
+        newob.assim_this = true
+        push!(obs, newob)
+    end
+
+    return (state, obs)
+
+end
+
+
+
